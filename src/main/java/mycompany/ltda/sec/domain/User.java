@@ -42,11 +42,17 @@ public class User implements UserDetails {
         return List.of(new SimpleGrantedAuthority("ROLE_USER"));
     }
 
-    public User(){}
+    public User(){
+        this.role = Role.USER;
+    }
 
     @Override
     public @Nullable String getPassword() {
         return senha;
+    }
+
+    public long getId(){
+        return id;
     }
 
     public Role getRole(){

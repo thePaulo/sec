@@ -1,50 +1,99 @@
 package mycompany.ltda.sec.controller;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
-import mycompany.ltda.sec.config.TokenService;
 import mycompany.ltda.sec.domain.User;
-import mycompany.ltda.sec.repository.UserRepository;
+import mycompany.ltda.sec.dto.LoginRequest;
+import mycompany.ltda.sec.dto.LoginResponse;
+import mycompany.ltda.sec.dto.RegisterRequest;
+import mycompany.ltda.sec.service.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
-    @Autowired
-    private AuthenticationManager authenticationManager;
 
     @Autowired
-    private UserRepository userRepository;
+    private AuthService authService;
 
-    @Autowired
-    private TokenService tokenService;
+    private final AuthenticationManager authenticationManager;
+
+    public AuthController(AuthenticationManager authenticationManager,
+                          AuthService authService) {
+        this.authenticationManager = authenticationManager;
+        this.authService = authService;
+    }
 
     @PostMapping("/login")
-    public ResponseEntity login(@RequestBody @Valid User user){
-        var usernamePassword = new UsernamePasswordAuthenticationToken(user.getLogin(),user.getPassword());
-        var auth = this.authenticationManager.authenticate(usernamePassword);
+    public ResponseEntity<?> login(
+            @RequestBody @Valid LoginRequest loginRequest,
+            HttpServletResponse response) {
 
-        var token  = tokenService.generateToken((User)auth.getPrincipal());
+        Authentication authentication =
+                authenticationManager.authenticate(
+                        new UsernamePasswordAuthenticationToken(
+                                loginRequest.getLogin(),
+                                loginRequest.getSenha()
+                        )
+                );
 
-        return ResponseEntity.ok(token);
+        System.out.println("Authentication successful for user: " + loginRequest.getLogin());
+
+        User user = (User) authentication.getPrincipal();
+
+        LoginResponse loginResponse =
+                authService.buildLoginResponse(user, response);
+
+        System.out.println("User role: " + (user.getRole() != null ? user.getRole().name() : "null"));
+
+        return ResponseEntity.ok(loginResponse);
     }
 
     @PostMapping("/register")
-    public ResponseEntity register(@RequestBody @Valid User user){
-        if(this.userRepository.findByLogin(user.getLogin()) != null) return ResponseEntity.badRequest().build();
+    public ResponseEntity<?> register(@RequestBody @Valid RegisterRequest registerRequest) {
+        try {
+            authService.register(registerRequest);
+            return ResponseEntity.ok("User registered successfully");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body(e.getMessage());
+        }
+    }
 
-        String encryptedPassword = new BCryptPasswordEncoder().encode(user.getPassword());
-        User newUser = new User(user.getLogin(),encryptedPassword,user.getRole());
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(HttpServletResponse response) {
+        authService.logout(response);
+        return ResponseEntity.ok("Logged out successfully");
+    }
 
-        this.userRepository.save(newUser);
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refreshToken(HttpServletRequest request,
+                                          HttpServletResponse response) {
+        try {
+            LoginResponse loginResponse = authService.refreshToken(request, response);
+            return ResponseEntity.ok(loginResponse);
+        } catch (Exception e) {
+            return ResponseEntity.status(401)
+                    .body(e.getMessage());
+        }
+    }
 
-        return ResponseEntity.ok().build();
+    @GetMapping("/me")
+    public ResponseEntity<?> getCurrentUser() {
+        try {
+            var user = authService.getCurrentUser();
+            if (user == null) {
+                return ResponseEntity.status(401).body("Not authenticated");
+            }
+            return ResponseEntity.ok(LoginResponse.fromUser(user));
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body("Not authenticated");
+        }
     }
 }
