@@ -4,6 +4,7 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTCreationException;
 import com.auth0.jwt.exceptions.JWTVerificationException;
+import com.auth0.jwt.interfaces.DecodedJWT;
 import mycompany.ltda.sec.domain.User;
 import mycompany.ltda.sec.domain.Role;
 import org.springframework.beans.factory.annotation.Value;
@@ -83,6 +84,20 @@ public class TokenService {
         } catch (JWTVerificationException e) {
             return null;
         }
+    }
+
+    public String getSubject(String token){
+        if (token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
+
+        Algorithm algorithm = Algorithm.HMAC256(secret);
+
+        DecodedJWT jwt = JWT.require(algorithm)
+                .build()
+                .verify(token);
+
+        return jwt.getSubject();
     }
 
     // Optional: Method to extract role from token

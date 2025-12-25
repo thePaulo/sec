@@ -2,8 +2,10 @@ package mycompany.ltda.sec.config;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import mycompany.ltda.sec.domain.User;
 import mycompany.ltda.sec.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.Ordered;
@@ -20,61 +22,45 @@ import java.io.IOException;
 public class SecurityFilter extends OncePerRequestFilter {
 
     @Autowired
-    TokenService tokenService;
+    private TokenService tokenService;
 
     @Autowired
-    UserRepository userRepository;
+    private UserRepository userRepository;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain) throws ServletException, IOException {
 
-        // Skip authentication for public endpoints
-        String path = request.getServletPath();
-        if (path.equals("/auth/login") || path.equals("/auth/register")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
+        // Extract token from cookie
+        String token = extractTokenFromCookie(request);
 
-        var token = this.recoverToken(request);
-        if (token == null || token.isEmpty()) {
-            // Missing token - let AuthenticationEntryPoint handle it (401)
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        try {
-            String login = tokenService.validateToken(token);
-            if (login == null || login.isEmpty()) {
-                // Invalid token - let AuthenticationEntryPoint handle it (401)
-                filterChain.doFilter(request, response);
-                return;
-            }
-
-            UserDetails userDetails = userRepository.findByLogin(login);
-            if (userDetails == null) {
-                // User not found - let AuthenticationEntryPoint handle it (401)
-                filterChain.doFilter(request, response);
-                return;
-            }
+        if (token != null && tokenService.validateToken(token) != null) {
+            String username = tokenService.getSubject(token);
+            User user = userRepository.findByLogin(username);
 
             var authentication = new UsernamePasswordAuthenticationToken(
-                    userDetails, null, userDetails.getAuthorities());
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+                    user, null, user.getAuthorities()
+            );
 
-        } catch (Exception e) {
-            // Token validation failed - let AuthenticationEntryPoint handle it (401)
-            // Don't set any authentication in SecurityContext
+            SecurityContextHolder.getContext().setAuthentication(authentication);
         }
 
         filterChain.doFilter(request, response);
     }
 
-    private String recoverToken(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+    private String extractTokenFromCookie(HttpServletRequest request) {
+        if (request.getCookies() == null) {
             return null;
         }
-        return authHeader.replace("Bearer ", "").trim();
+
+        for (Cookie cookie : request.getCookies()) {
+            if ("accessToken".equals(cookie.getName())) {
+                return cookie.getValue();
+            }
+        }
+
+        return null;
     }
 }

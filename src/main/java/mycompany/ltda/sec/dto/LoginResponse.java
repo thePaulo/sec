@@ -11,17 +11,15 @@ public class LoginResponse {
     // Constructors
     public LoginResponse() {}
 
-    public LoginResponse(Long id, String username, Role role) {
+    public LoginResponse(Long id, String username) {
         this.id = id;
         this.username = username;
-        this.role = role;
     }
 
     public static LoginResponse fromUser(User user) {
         return new LoginResponse(
                 user.getId(),
-                user.getLogin(),
-                user.getRole() != null ? user.getRole() : null
+                user.getLogin()
         );
     }
 
@@ -37,8 +35,7 @@ public class LoginResponse {
     public static LoginResponse createLoginResponse(User user) {
         return new LoginResponse(
                 user.getId(),
-                user.getLogin(),
-                user.getRole()
+                user.getLogin()
         );
     }
 }
