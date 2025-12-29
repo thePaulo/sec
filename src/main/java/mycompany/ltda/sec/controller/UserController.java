@@ -1,5 +1,7 @@
 package mycompany.ltda.sec.controller;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 
@@ -9,9 +11,11 @@ import java.security.Principal;
 public class UserController {
 
     @RequestMapping("/")
-    public String getRequisicoes(Principal principal){
+    public ResponseEntity<Object> getRequisicoes(Principal principal){//ResponseEntity<Void>
         System.out.println(principal);
-        System.out.println("entrou");
-        return "haha";
+        System.out.println("test");
+        //return ResponseEntity.ok().build();
+        //return "redirect:http://www.google.com";
+        return new ResponseEntity<>("http://www.google.com", HttpStatus.OK);
     }
 }
